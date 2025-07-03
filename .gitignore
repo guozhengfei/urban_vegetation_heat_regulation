@@ -1,0 +1,2 @@
+# Ignore all scripts starting with 'M' in any subdirectory
+**/M*.py
