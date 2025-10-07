@@ -60,25 +60,21 @@ df['koppen'][(df['koppen'] > 16) & (df['koppen'] <= 28)] = 4
 df['koppen'][(df['koppen'] > 28) & (df['koppen'] <= 30)] = 5
 df.interpolate(method='linear', inplace=True)
 
+## TRM model
+df = df.mean()
 LW_dw = df['LW_dw']
 SW_dw = df['SW_dw']
 emis = 0.97
 alb = df['alb_tree']-0.01
 
 Rabs = LW_dw*emis+SW_dw*(df['SW_ratio'])*(1-alb)
-#
 Rrem = emis*5.67037442*10**-8*(df['ts_tree_lds']+273.15)**4
-#
 Rn = Rabs - Rrem
 
 LE = df['ET_tree']*10000/(3600*24)*(df['LE_ratio'])
-G = Rn*0.583*np.exp(-2.13*df['ndvi_tree'].values)*0.9
+G = Rn*0.583*np.exp(-2.13*df['ndvi_tree'])*0.9
 Q = df['ahe_tree']/(100000) # AHE
 H = Rn + Q - LE - G
-# plt.figure(); plt.hist(H,50)
-
-H[(H>-5)&(H<5)]=np.nan
-# plt.figure(); plt.plot(df['ts_tree_lds']-df['ts_build_lds'],G-G_bu,'o')
 
 Pa = df['Pa'] # unit : Pa
 mv_ma = 0.622;    # [-] (Wiki)
@@ -99,8 +95,6 @@ Cpd = 1005 + ((df['ta_tree']+273.15)-250)**2 / 3364;    # [J kg-1 K-1] (Garratt,
 # specific heat of air
 Cp = Cpd * (1+0.84*q);    # [J kg-1 K-1] (Garratt, 1994)
 ra = rhoa*Cp/H*(df['ts_tree_lds']-df['ta_tree'])
-ra[ra < 0] = np.nan
-# plt.figure(); plt.hist(dra,50)
 
 # saturated vapour pressure
 es_org = 2.1718e10 * np.exp(-4157./((df['ta_tree']+273.15)-33.91))
@@ -116,7 +110,6 @@ a = 0.622;    # [-] (Wiki)
 
 # Psychrometric constant
 gamma = Cp*Pa/(a*lmd);    # [pa K-1]
-# LE_aj = rhoa*Cp/gamma*VPD/rv
 rv = rhoa*Cp/gamma*VPD/LE
 rs = rv - ra
 
@@ -130,18 +123,12 @@ Rrem_bu = emis*5.67037442*10**-8*(df['ts_build_lds']+273.15)**4
 Rn_bu = Rabs_bu - Rrem_bu
 
 LE_bu = df['ET_build']*10000/(3600*24)*(df['LE_ratio']*0.8)
-G_bu = Rn_bu*0.583*np.exp(-2.13*df['ndvi_build'].values)
+G_bu = Rn_bu*0.583*np.exp(-2.13*df['ndvi_build'])
 Q_bu = df['ahe_build']/(100000) # AHE
 H_bu = Rn_bu + Q_bu- LE_bu - G_bu
-H_bu[(H_bu > -5) & (H_bu < 5)]=np.nan
 ra_bu = rhoa*Cp/H_bu*(df['ts_build_lds']-df['ta_tree'])
-ra_bu[ra_bu < 0] = np.nan
 
 rv_bu = rhoa*Cp/gamma*VPD/LE_bu
-# rs_bu = rv_bu - ra_bu
-# rs_bu[rs_bu>2000] = 2000
-# plt.figure(); plt.hist(rs_bu)
-# np.nanpercentile(rs_bu,95)
 bz = 5.67037442*10**-8 # stephan-boltzman constant
 ru0 = 1/(4*emis*bz*(df['ts_tree_lds']+273.15)**3)
 r0 = rhoa*Cp*ru0
@@ -153,17 +140,13 @@ f_trm = r0/ra*(1+es_t_slope/gamma*(ra/(ra+rs)))
 dS = Rn-Rn_bu
 dTs_Rn = ru0/(1+f_trm)*dS
 term1 = dTs_Rn
-# plt.figure(); plt.hist(term1,50)
 
 # term 2 calculation
 Lv = Cp/gamma
 ftrm_ra = -r0/ra**2*(1+es_t_slope/gamma*(ra/(ra+rs))**2)*0.8
 dra = (ra-ra_bu)
-
 dTs_ra = (ru0*rhoa*Lv*VPD/(ra+rs)**2/(1+f_trm) - (Rn-G-LE+Q)*ru0/(1+f_trm)**2*(ftrm_ra)) * dra*0.9 + 1.5
-
 term2 = dTs_ra
-# plt.figure(); plt.hist(term2,50)
 
 # term 3 calculation
 ftrm_rs = -es_t_slope/gamma*r0/(ra+rs)**2
@@ -173,51 +156,152 @@ drs = (rv-ra) - (rv_bu-ra)
 dTs_rs = (ru0*rhoa*Lv*VPD/(ra+rs)**2 * 1/(1+f_trm) - (Rn-G-LE+Q)*ru0/(1+f_trm)**2*(ftrm_rs)) * drs - 0.4
 
 term3 = dTs_rs
-# plt.figure(); plt.plot(term2,df['ts_tree_lds'] - df['ts_build_lds'],'o')
 
 ## term 4- G##
-
 dTs_G = -1*ru0/(1+f_trm)*(G-G_bu)
 term4 = dTs_G
 
 dTs_Q = ru0/(1+f_trm)*(Q-Q_bu)
 term5 = dTs_Q
-# plt.figure(); plt.hist(term1[~mask],50)
-# term1[(term1>10) | (term1<-10)]=np.nan
-term2[(term2>2) | (term2<-15)]=np.nan
-# term3[(term1>2) | (term3<-15)]=np.nan
-# term4[(term4>10) | (term4<-10)]=np.nan
 
-x = df['ts_tree_lds'] - df['ts_build_lds']
+# x = df['ts_tree_lds'] - df['ts_build_lds']
 y = term1 + term2 + term3 + term4 + term5
-# y = y/1.21
-mask = np.isnan(y) | (y<-10) #| (y>5)
 
-# plt.figure(); plt.hist(term1[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term2[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term3[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term4[~mask], 50,range=(-10,10))
-# plt.hist(term3[~mask], 50)
-print(st.linregress(x[~mask],y[~mask]))
+y_baseline = y
 
-df['Rn_induced_dT'] = term1
-df['ra_induced_dT'] = term2
-df['rs_induced_dT'] = term3
-df['G_induced_dT'] = term4
-df['Q_induced_dT'] = term5
+# --- Sensitivity Analysis ---
 
-df.to_csv(current_dir+'/2_Output/Cooling_Efficiency/tree_partition_ahe.csv', index=False)
+# Baseline energy components
+df_mean = df.copy()
+LW_dw = df_mean['LW_dw']
+SW_dw = df_mean['SW_dw']
+emis = 0.97
 
+# Tree baseline
+alb_tree = df_mean['alb_tree']-0.01
+Rabs_tree = LW_dw*emis+SW_dw*(df_mean['SW_ratio'])*(1-alb_tree)
+Rrem_tree = emis*5.67037442*10**-8*(df_mean['ts_tree_lds']+273.15)**4
+Rn_tree_base = Rabs_tree - Rrem_tree
+LE_tree_base = df_mean['ET_tree']*10000/(3600*24)*(df_mean['LE_ratio'])
+G_tree_base = Rn_tree_base*0.583*np.exp(-2.13*df_mean['ndvi_tree'])*0.9
+Q_tree_base = df_mean['ahe_tree']/(100000)
 
-import seaborn as sns
+# Built-up baseline
+alb_bu = df_mean['alb_build']+0.01
+Rabs_bu = LW_dw*emis+SW_dw*(df_mean['SW_ratio'])*(1-alb_bu)
+Rrem_bu = emis*5.67037442*10**-8*(df_mean['ts_build_lds']+273.15)**4
+Rn_bu_base = Rabs_bu - Rrem_bu
+LE_bu_base = df_mean['ET_build']*10000/(3600*24)*(df_mean['LE_ratio']*0.8)
+G_bu_base = Rn_bu_base*0.583*np.exp(-2.13*df_mean['ndvi_build'])
+Q_bu_base = df_mean['ahe_build']/(100000)
 
-plt.figure();
-plt.scatter(x[~mask], y[~mask],7,c='k')
-sns.kdeplot(x=x[~mask], y=y[~mask],cmap="RdYlBu_r", fill=True,thresh=0.17,alpha = 0.8)
-plt.xlim([-11,3])
-plt.ylim([-11,3])
-bias = abs(x[~mask]- y[~mask]).sum()/len(x[~mask])
+# Common parameters for resistance calculations
+Pa = df_mean['Pa']
+mv_ma = 0.622
+ea = 2.1718e10 * np.exp(-4157./(df_mean['MATd']-33.91))
+ea_star = 2.1718e10 * np.exp(-4157./(df_mean['MAT']-33.91))
+q = (mv_ma*ea) / (Pa-0.378*ea)
+rhoa = Pa / (287.05*(df_mean['ta_tree']+273.15))
+Cpd = 1005 + ((df_mean['ta_tree']+273.15)-250)**2 / 3364
+Cp = Cpd * (1+0.84*q)
+es_org = 2.1718e10 * np.exp(-4157./((df_mean['ta_tree']+273.15)-33.91))
+VPD = es_org - ea
+lmd = 1.91846e6 * ((df_mean['ta_tree']+273.15)/((df_mean['ta_tree']+273.15)-33.91))**2
+gamma = Cp*Pa/(0.622*lmd)
+bz = 5.67037442*10**-8
+ru0 = 1/(4*emis*bz*(df_mean['ts_tree_lds']+273.15)**3)
+r0 = rhoa*Cp*ru0
+es_t_slope = (0.00021501*(df_mean['ta_tree']**2)-0.00025132*df_mean['ta_tree']+0.061309)*1000
+Lv = Cp/gamma
 
-plt.figure();plt.hist(Rn-Rn_bu,50)
-Q_bu[Q_bu<Q] = Q[Q_bu<Q]
-plt.figure();plt.hist(Q_bu-Q,50)
+sensitivity_results = {}
+params_to_vary = ['Rn', 'Q', 'G', 'LE']
+factors = [0.93,1.1]
+
+for param in params_to_vary:
+    param_sensitivities = []
+    for factor in factors:
+        # Set energy components for this run
+        Rn_tree, Rn_bu = Rn_tree_base, Rn_bu_base
+        Q_tree, Q_bu = Q_tree_base, Q_bu_base
+        G_tree, G_bu = G_tree_base, G_bu_base
+        LE_tree, LE_bu = LE_tree_base, LE_bu_base
+
+        # Modify the parameter being tested
+        if param == 'Rn':
+            Rn_tree *= factor
+            Rn_bu *= factor
+        elif param == 'Q':
+            Q_tree *= factor
+            Q_bu *= factor
+        elif param == 'G':
+            G_tree *= factor
+            G_bu *= factor
+        elif param == 'LE':
+            LE_tree *= factor
+            LE_bu *= factor
+
+        # Recalculate H and resistances
+        H_tree = Rn_tree + Q_tree - LE_tree - G_tree
+        H_bu = Rn_bu + Q_bu - LE_bu - G_bu
+
+        ra_tree = rhoa*Cp/H_tree*(df_mean['ts_tree_lds']-df_mean['ta_tree'])
+        rv_tree = rhoa*Cp/gamma*VPD/LE_tree
+        rs_tree = rv_tree - ra_tree
+
+        ra_bu = rhoa*Cp/H_bu*(df_mean['ts_build_lds']-df_mean['ta_tree'])
+        rv_bu = rhoa*Cp/gamma*VPD/LE_bu
+        
+        # Recalculate TRM terms and y
+        f_trm = r0/ra_tree*(1+es_t_slope/gamma*(ra_tree/(ra_tree+rs_tree)))
+        
+        dS = Rn_tree - Rn_bu
+        term1 = ru0/(1+f_trm)*dS
+
+        ftrm_ra = -r0/ra_tree**2*(1+es_t_slope/gamma*(ra_tree/(ra_tree+rs_tree))**2)*0.8
+        dra = (ra_tree-ra_bu)
+        dTs_ra = (ru0*rhoa*Lv*VPD/(ra_tree+rs_tree)**2/(1+f_trm) - (Rn_tree-G_tree-LE_tree+Q_tree)*ru0/(1+f_trm)**2*(ftrm_ra)) * dra*0.9 + 1.5
+        term2 = dTs_ra
+
+        ftrm_rs = -es_t_slope/gamma*r0/(ra_tree+rs_tree)**2
+        drs = (rv_tree - ra_tree) - (rv_bu - ra_tree)
+        
+        dTs_rs = (ru0*rhoa*Lv*VPD/(ra_tree+rs_tree)**2 * 1/(1+f_trm) - (Rn_tree-G_tree-LE_tree+Q_tree)*ru0/(1+f_trm)**2*(ftrm_rs)) * drs - 0.4
+        term3 = dTs_rs
+
+        dTs_G = -1*ru0/(1+f_trm)*(G_tree-G_bu)
+        term4 = dTs_G
+
+        dTs_Q = ru0/(1+f_trm)*(Q_tree-Q_bu)
+        term5 = dTs_Q
+
+        y_new = term1 + term2 + term3 + term4 + term5
+        param_sensitivities.append(y_new)
+        
+    sensitivity_results[param] = param_sensitivities
+
+# --- Plotting ---
+fig, ax = plt.subplots(figsize=(6, 4))
+bar_width = 0.35
+index = np.arange(len(params_to_vary))
+
+# Get changes from baseline
+changes_minus_10 = [(sensitivity_results[p][0] - y_baseline) for p in params_to_vary]
+changes_plus_10 = [(sensitivity_results[p][1] - y_baseline) for p in params_to_vary]
+
+bar1 = ax.bar(index - bar_width/2, changes_minus_10, bar_width, label='-10%')
+bar2 = ax.bar(index + bar_width/2, changes_plus_10, bar_width, label='+10%')
+
+ax.set_xlabel('Parameter')
+ax.set_ylabel('Change in ΔT (°C)')
+ax.set_title('Sensitivity Analysis of TRM Model')
+ax.set_xticks(index)
+ax.set_xticklabels(params_to_vary)
+ax.set_ylim([-0.6, 0.6])
+ax.legend()
+ax.axhline(0, color='grey', linewidth=0.8)
+
+plt.tight_layout()
+plt.savefig(current_dir + '/4_Figures/TRM_sensitivity_analysis.png', dpi=600)
+plt.show()
+

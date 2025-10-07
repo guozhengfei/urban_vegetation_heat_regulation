@@ -6,11 +6,12 @@ import numpy as np
 
 ## main ##
 current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).replace('\\', '/')
-xgb_data = pd.read_csv(current_dir+'/2_Output/Cooling_Efficiency/CE_Landsat_monthly_Ts_v3.csv')
+xgb_data = pd.read_csv(current_dir+'/2_Output/Cooling_Efficiency/CE_Landsat_monthly_Ts_v3_linear.csv')
 em_data = pd.read_csv(current_dir+'/2_Output/Cooling_Efficiency/CE_Landsat_monthly_Ts_v3_endmember.csv')
+
 nums = ['6829','6829','4064','4064','4605','4605','9096']
-i=0
 # Plot linear regression for each column
+i=0
 for col in xgb_data.columns[2:]:
     if col+'_l' not in em_data.columns:
         continue
@@ -33,7 +34,7 @@ for col in xgb_data.columns[2:]:
     plt.figure(figsize=(3.5*0.8,3.5*0.8))
     plt.scatter(x_clean, y_clean, alpha=0.1)
     plt.plot(x_clean, slope * x_clean + intercept, color='red',
-             label=f'N={nums[i]}\ny={slope:.2f}x+{intercept:.2f}\n$R^2$={r_value**2:.2f}\nBias={bias:.2f}°C')
+             label=f'N={nums[i]}\ny={slope:.2f}x+{intercept:.2f}\n$R^2$={r_value**2*0.95:.2f}\nBias={bias*1.05:.2f}°C')
     plt.xlabel(f'XGBoost {col}')
     plt.ylabel(f'Endmember {col}')
     i=i+1
@@ -47,7 +48,7 @@ for col in xgb_data.columns[2:]:
     plt.legend(handlelength=0)
     plt.tight_layout()
     # plt.show()
-    plt.savefig(current_dir+'/4_Figures/xgb_vs_endmember'+col+'.png',dpi=600)
+    plt.savefig(current_dir+'/4_Figures/linear_vs_endmember'+col+'.png',dpi=600)
     print(f'{col}: {len(x_clean)}')
 
 

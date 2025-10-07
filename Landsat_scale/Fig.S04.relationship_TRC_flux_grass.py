@@ -64,7 +64,7 @@ df.interpolate(method='linear', inplace=True)
 LW_dw = df['LW_dw']
 SW_dw = df['SW_dw']
 emis = 0.97
-alb = df['alb_tree']-0.02
+alb = df['alb_tree']#-0.02
 
 Rabs = LW_dw*emis+SW_dw*(df['SW_ratio'])*(1-alb)
 #
@@ -129,8 +129,8 @@ rs = rv - ra
 
 ##### for build-up area
 # emis = 0.98
-alb_bu = df['alb_build']+0.02
-alb_bu[alb_bu<alb] = alb[alb_bu<alb]+0.02
+alb_bu = df['alb_build']+0.03
+#alb_bu[alb_bu<alb] = alb[alb_bu<alb]+0.02
 Rabs_bu = LW_dw*emis+SW_dw*(df['SW_ratio'])*(1-alb_bu)
 #
 Rrem_bu = emis*5.67037442*10**-8*(df['ts_build_lds']+273.15)**4
@@ -204,4 +204,4 @@ figToPath = current_dir + '/4_Figures/FigS04_dT_flux_grass'
 fig.tight_layout()
 # fig.subplots_adjust(wspace = 0.01)
 fig.savefig(figToPath, dpi=600)
-plt.close(fig)
+# plt.close(fig)

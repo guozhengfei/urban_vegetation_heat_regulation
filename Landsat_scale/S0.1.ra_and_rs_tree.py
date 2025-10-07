@@ -72,7 +72,7 @@ Rrem = emis*5.67037442*10**-8*(df['ts_tree_lds']+273.15)**4
 Rn = Rabs - Rrem
 
 LE = df['ET_tree']*10000/(3600*24)*(df['LE_ratio'])
-G = Rn*0.583*np.exp(-2.13*df['ndvi_tree'].values)*0.9
+G = Rn*0.583*np.exp(-2.13*df['ndvi_tree'].values)
 Q = df['ahe_tree']/(100000) # AHE
 H = Rn + Q - LE - G
 # plt.figure(); plt.hist(H,50)
@@ -98,7 +98,7 @@ Cpd = 1005 + ((df['ta_tree']+273.15)-250)**2 / 3364;    # [J kg-1 K-1] (Garratt,
 
 # specific heat of air
 Cp = Cpd * (1+0.84*q);    # [J kg-1 K-1] (Garratt, 1994)
-ra = rhoa*Cp/H*(df['ts_tree_lds']-df['ta_tree'])
+ra = rhoa*Cp/H*(df['ts_tree_lds']-df['ta_tree'])*0.6
 ra[ra < 0] = np.nan
 # plt.figure(); plt.hist(dra,50)
 
@@ -106,7 +106,7 @@ ra[ra < 0] = np.nan
 es_org = 2.1718e10 * np.exp(-4157./((df['ta_tree']+273.15)-33.91))
 
 # water vapour deficit
-VPD = es_org - ea;  # [Pa]
+VPD = ea_star - ea;  # [Pa]
 
 # latent heat of vaporization
 lmd = 1.91846e6 * ((df['ta_tree']+273.15)/((df['ta_tree']+273.15)-33.91))**2   # [J kg-1] (Henderson-Sellers, 1984)
@@ -118,106 +118,9 @@ a = 0.622;    # [-] (Wiki)
 gamma = Cp*Pa/(a*lmd);    # [pa K-1]
 # LE_aj = rhoa*Cp/gamma*VPD/rv
 rv = rhoa*Cp/gamma*VPD/LE
-rs = rv - ra
+# rs = rv - ra
+df['ra_tree'] = ra
+df['rv_tree'] = rv
 
-alb_bu = df['alb_build']+0.01
-
-Rabs_bu = LW_dw*emis+SW_dw*(df['SW_ratio'])*(1-alb_bu)
-#
-Rrem_bu = emis*5.67037442*10**-8*(df['ts_build_lds']+273.15)**4
-
-#
-Rn_bu = Rabs_bu - Rrem_bu
-
-LE_bu = df['ET_build']*10000/(3600*24)*(df['LE_ratio']*0.8)
-G_bu = Rn_bu*0.583*np.exp(-2.13*df['ndvi_build'].values)
-Q_bu = df['ahe_build']/(100000) # AHE
-H_bu = Rn_bu + Q_bu- LE_bu - G_bu
-H_bu[(H_bu > -5) & (H_bu < 5)]=np.nan
-ra_bu = rhoa*Cp/H_bu*(df['ts_build_lds']-df['ta_tree'])
-ra_bu[ra_bu < 0] = np.nan
-
-rv_bu = rhoa*Cp/gamma*VPD/LE_bu
-# rs_bu = rv_bu - ra_bu
-# rs_bu[rs_bu>2000] = 2000
-# plt.figure(); plt.hist(rs_bu)
-# np.nanpercentile(rs_bu,95)
-bz = 5.67037442*10**-8 # stephan-boltzman constant
-ru0 = 1/(4*emis*bz*(df['ts_tree_lds']+273.15)**3)
-r0 = rhoa*Cp*ru0
-es_t_slope = (0.00021501*(df['ta_tree']**2)-0.00025132*df['ta_tree']+0.061309)*1000 #[Pa k-1]
-f_trm = r0/ra*(1+es_t_slope/gamma*(ra/(ra+rs)))
-
-## Rn part ##
-
-dS = Rn-Rn_bu
-dTs_Rn = ru0/(1+f_trm)*dS
-term1 = dTs_Rn
-# plt.figure(); plt.hist(term1,50)
-
-# term 2 calculation
-Lv = Cp/gamma
-ftrm_ra = -r0/ra**2*(1+es_t_slope/gamma*(ra/(ra+rs))**2)*0.8
-dra = (ra-ra_bu)
-
-dTs_ra = (ru0*rhoa*Lv*VPD/(ra+rs)**2/(1+f_trm) - (Rn-G-LE+Q)*ru0/(1+f_trm)**2*(ftrm_ra)) * dra*0.9 + 1.5
-
-term2 = dTs_ra
-# plt.figure(); plt.hist(term2,50)
-
-# term 3 calculation
-ftrm_rs = -es_t_slope/gamma*r0/(ra+rs)**2
-
-drs = (rv-ra) - (rv_bu-ra)
-
-dTs_rs = (ru0*rhoa*Lv*VPD/(ra+rs)**2 * 1/(1+f_trm) - (Rn-G-LE+Q)*ru0/(1+f_trm)**2*(ftrm_rs)) * drs - 0.4
-
-term3 = dTs_rs
-# plt.figure(); plt.plot(term2,df['ts_tree_lds'] - df['ts_build_lds'],'o')
-
-## term 4- G##
-
-dTs_G = -1*ru0/(1+f_trm)*(G-G_bu)
-term4 = dTs_G
-
-dTs_Q = ru0/(1+f_trm)*(Q-Q_bu)
-term5 = dTs_Q
-# plt.figure(); plt.hist(term1[~mask],50)
-# term1[(term1>10) | (term1<-10)]=np.nan
-term2[(term2>2) | (term2<-15)]=np.nan
-# term3[(term1>2) | (term3<-15)]=np.nan
-# term4[(term4>10) | (term4<-10)]=np.nan
-
-x = df['ts_tree_lds'] - df['ts_build_lds']
-y = term1 + term2 + term3 + term4 + term5
-# y = y/1.21
-mask = np.isnan(y) | (y<-10) #| (y>5)
-
-# plt.figure(); plt.hist(term1[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term2[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term3[~mask], 50,range=(-10,10))
-# plt.figure(); plt.hist(term4[~mask], 50,range=(-10,10))
-# plt.hist(term3[~mask], 50)
-print(st.linregress(x[~mask],y[~mask]))
-
-df['Rn_induced_dT'] = term1
-df['ra_induced_dT'] = term2
-df['rs_induced_dT'] = term3
-df['G_induced_dT'] = term4
-df['Q_induced_dT'] = term5
-
-df.to_csv(current_dir+'/2_Output/Cooling_Efficiency/tree_partition_ahe.csv', index=False)
-
-
-import seaborn as sns
-
-plt.figure();
-plt.scatter(x[~mask], y[~mask],7,c='k')
-sns.kdeplot(x=x[~mask], y=y[~mask],cmap="RdYlBu_r", fill=True,thresh=0.17,alpha = 0.8)
-plt.xlim([-11,3])
-plt.ylim([-11,3])
-bias = abs(x[~mask]- y[~mask]).sum()/len(x[~mask])
-
-plt.figure();plt.hist(Rn-Rn_bu,50)
-Q_bu[Q_bu<Q] = Q[Q_bu<Q]
-plt.figure();plt.hist(Q_bu-Q,50)
+df_out = df[['ID','ra_tree','rv_tree']]
+df_out.to_csv(current_dir + '/2_Output/Cooling_Efficiency/tree_ra_rs.csv', index=False)

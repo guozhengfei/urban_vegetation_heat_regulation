@@ -161,19 +161,10 @@ current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__
 cities_ID = gpd.read_file(current_dir + '/1_Input/urban_cores_newtowns/urban_100km2.shp')['ID'].astype(int)
 
 treeC_folder = current_dir + '/1_Input/treeCover_100m/'
-
 grassC_folder = current_dir + '/1_Input/grassCover_100m/'
-
 cropC_folder = current_dir + '/1_Input/cropCover_100m/'
-
-# shrubC_folder = r'D:\Projects\Postdoc urban greening\Data\FractionFrom10m\shrub_cover\\'
-
 buildC_folder = current_dir + '/1_Input/buildCover_100m/'
-
-# bareC_folder = r'D:\Projects\Postdoc urban greening\Data\FractionFrom10m\bare_cover\\'
-
 TairMaxTiff_folder = current_dir + '/1_Input/LST/'
-
 urbanRaster_folder = current_dir + '/1_Input/urbanRaster_100m/'
 
 # impervious_folder = r'D:\Projects\Postdoc urban greening\Data\FractionFrom10m\Impervious\\'

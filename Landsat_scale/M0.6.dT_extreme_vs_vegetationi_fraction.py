@@ -12,149 +12,11 @@ import geopandas as gpd
 from scipy.ndimage import convolve1d
 from scipy.optimize import curve_fit
 
-# Perform linear regression along the 3rd dimension
-def linear_regression_3d_with_nan(array):
-    # Reshape the array to 2D (flatten along the 3rd dimension)
-    flattened_array = (array*1).reshape((-1, array.shape[2]))
-
-    # Find indices of NaN values
-    nan_indices = np.isnan(flattened_array)
-
-    # Replace NaN values with the mean of non-NaN values along each column
-    column_means = np.nanmean(flattened_array, axis=0)
-    flattened_array[nan_indices] = np.take(column_means, np.where(nan_indices)[1])
-
-    # Perform linear regression
-    x = np.arange(flattened_array.shape[1])
-    slope, intercept = np.polyfit(x, flattened_array.T, deg=1)
-    flattened_array = array.reshape((-1, array.shape[2]))
-    slope = (slope+flattened_array[:,1]-flattened_array[:,1]).reshape(array.shape[0], array.shape[1])
-    intercept = (intercept++flattened_array[:,1]-flattened_array[:,1]).reshape(array.shape[0], array.shape[1])
-    return slope, intercept
-
-def IQR_filter(array):
-    p25 = np.percentile(array[~np.isnan(array)], 25)
-    p75 = np.percentile(array[~np.isnan(array)],75)
-    IQR = p75-p25
-    array[array < p25 - 1.5*IQR] = np.nan
-    array[array > p75 + 1.5*IQR] = np.nan
-    arraynew = array
-    return arraynew
-
-def IQR_filter2(array):
-    std = np.nanstd(array)
-    mean = np.nanmean(array)
-    array[array < mean - 3*std] = np.nan
-    array[array > mean + 3*std] = np.nan
-    arraynew = array
-    return arraynew
-
-def divide_2_class(array, threshold = 0.1):
-    array[array<threshold] = 0
-    array[array>threshold] = 1
-    return array
-
-def remove_outliers_replace_mean(arr, threshold=3):
-    # Compute the mean and standard deviation of the array
-    arr_mean = np.mean(arr)
-    arr_std = np.std(arr)
-
-    # Define the upper and lower bounds for outliers
-    lower_bound = arr_mean - threshold * arr_std
-    upper_bound = arr_mean + threshold * arr_std
-
-    # Replace outliers with the mean value
-    cleaned_arr = np.where(np.logical_or(arr < lower_bound, arr > upper_bound), arr_mean, arr)
-
-    return cleaned_arr
-
 def smooth_2d_array(arr, window_size):
     kernel = np.ones(window_size) / window_size
     smoothed_arr = convolve1d(arr, kernel, axis=0, mode='nearest')
     return smoothed_arr
 
-def gaussian_func(X, t0, a1, a2):
-    x, y = X
-    return t0 + a1 * x + a2 * y
-
-def background_climate(tairHot,Dem,urban):
-
-    # Generate some sample data points
-    x = np.linspace(1,tairHot.shape[1],tairHot.shape[1])
-    y = np.linspace(1,tairHot.shape[0],tairHot.shape[0])
-    X, Y = np.meshgrid(x, y)
-    Z = tairHot*1
-    Dem_mean = np.nanmean(Dem*urban)
-    # plt.figure();plt.imshow(Dem)
-    Dem_std = np.nanstd(Dem*urban)
-    dem = Dem*1.0
-    dem_mask = (dem>(Dem_mean+3*Dem_std)) | (dem < (Dem_mean-3*Dem_std))
-    dem[dem_mask] = np.nan
-    # plt.figure(); plt.imshow(dem-Dem_mean)
-    mask0 = np.isnan(dem) | np.isnan(Z)
-    try:
-        slope = st.linregress(dem[~mask0], Z[~mask0]).slope
-        rvalue = st.linregress(dem[~mask0], Z[~mask0]).rvalue
-    except ValueError:
-        slope = -0.0065
-        rvalue = 0
-
-    if abs(rvalue) < 0.5: slope = -0.0065
-    Z = Z - (dem - Dem_mean) * slope
-    # Perform the custom function fit
-    mask = ~np.isnan(urban) | np.isnan(Z)
-    X1 = X[~mask]
-    Y1 = Y[~mask]
-    Z1 = Z[~mask]
-    p0 = [np.mean(Z1), 1, 1]  # Initial guess for the parameters
-    fit_params, _ = curve_fit(gaussian_func, (X1, Y1), Z1, p0)
-    Z1_fit = gaussian_func((X1, Y1), *fit_params)
-    st.linregress(Z1_fit,Z1)
-    Z_fit = gaussian_func((X, Y), *fit_params)
-    return Z_fit
-
-def find_pure_pix(Dem, urban, grassC, cropC, treeC):
-    Dem_mean = np.nanmean(Dem * urban)
-    # plt.figure();plt.imshow(Dem)
-    Dem_std = np.nanstd(Dem * urban)
-    dem = Dem * 1.0
-    dem_mask = (dem > (Dem_mean + 3 * Dem_std)) | (dem < (Dem_mean - 3 * Dem_std))
-    dem[dem_mask] = np.nan
-    grassD = np.sort(grassC[~np.isnan(dem)])[-15]
-    cropD = np.sort(cropC[~np.isnan(dem)])[-15]
-    treeD = np.sort(treeC[~np.isnan(dem)])[-15]
-
-    mask = (grassC > grassD) | (treeC > treeD) | (cropC > cropD)
-    urban2 = ~np.isnan(urban) | (mask & ~dem_mask)
-    urban2 = urban2.astype(float)
-    urban2[urban2 == 0] = np.nan
-    return urban2, dem
-
-def gap_fill_tair(tairMax, urban):  # only consider the tair within urban
-    # make urban have the same size with tair data
-    repeated_urban = np.repeat(urban[:, :, np.newaxis], tairMax.shape[-1], axis=2)
-    tairMax = tairMax * repeated_urban
-
-    # reshape the 3d array to 2d: remove the data outside the urban
-    tairMax_2d = tairMax.reshape((-1, tairMax.shape[-1]))
-    urban_2d = repeated_urban.reshape((-1, repeated_urban.shape[-1]))
-    tairMax_urban = tairMax_2d[~np.isnan(urban_2d[:, 1]), :]
-
-    # reshape the 2d array to 1d for linear interpolate
-    tairMax_urban_1d = tairMax_urban.reshape(-1)
-    mask = np.isnan(tairMax_urban_1d)
-
-    # Get the indices of non-NaN values
-    indices = np.arange(len(tairMax_urban_1d))
-
-    # Perform linear interpolation
-    tairMax_urban_1d[mask] = np.interp(indices[mask], indices[~mask], tairMax_urban_1d[~mask])
-
-    tairMax_urban_fill = tairMax_urban_1d.reshape(tairMax_urban.shape)
-    # reshape the fill array to original size
-    tairMax_2d[~np.isnan(urban_2d[:, 1]), :] = tairMax_urban_fill
-    tairMax_fill = tairMax_2d.reshape(tairMax.shape)
-    return tairMax_fill
 ## main ##
 cities_ID = gpd.read_file('D:/Projects/Postdoc urban greening/Data/urban_cores_newtowns/urban_100km2.shp')['ID'].astype(int)
 
@@ -176,11 +38,7 @@ TairMaxTiff_folder_normal = r'D:\Projects\Postdoc urban greening\Landsat_scale_d
 
 urbanRaster_folder = r'D:\Projects\Postdoc urban greening\Landsat_scale_data_codes\urbanRaster_100m\\'
 
-# impervious_folder = r'D:\Projects\Postdoc urban greening\Data\FractionFrom10m\Impervious\\'
-
 dem_folder = r'D:\Projects\Postdoc urban greening\Landsat_scale_data_codes\DEM_100m\\'
-
-# pop_folder = r'D:\Projects\Postdoc urban greening\Data\Population_density\\'
 
 water_folder = r'D:\Projects\Postdoc urban greening\Landsat_scale_data_codes\waterCover_100m\\'
 
@@ -206,7 +64,7 @@ for i in cities_ID[1:]:
 
     tairMax_normal_urban = tairMax_normal*urban_3d
     month_mean = np.nanmean(tairMax_normal_urban.reshape(-1,tairMax_normal.shape[2]), axis=0)
-    summer_index = month_mean>np.percentile(month_mean,75)
+    summer_index = month_mean>np.percentile(month_mean,75) # hottest three month
     tair_norm_summer = np.nanmean(tairMax_normal[:,:,summer_index],axis=2)
     tairHot = tairMax_extreme - tair_norm_summer
     valid_ratio = np.sum(~np.isnan(tairHot*urban)) / np.sum(~np.isnan(urban))
@@ -236,9 +94,7 @@ for i in cities_ID[1:]:
 
     Dem = tf.imread(dem_folder + 'dem_' + str(i) + '.0.tif')
     # pop = tf.imread(pop_folder + 'pop_' + str(i) + '.0.tif')[:,:,-1]
-    # tair_bg = background_climate(tairHot, Dem, urban)
     tair_bg = 0
-    # urban, Dem = find_pure_pix(Dem, urban, grassC, cropC, treeC)
 
     # urban[0:5,:]=np.nan; urban[-5:,:]=np.nan; urban[:,0:5]=np.nan; urban[:,-5:]=np.nan;
 
