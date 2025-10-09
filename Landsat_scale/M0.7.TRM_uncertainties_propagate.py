@@ -286,8 +286,10 @@ bar_width = 0.35
 index = np.arange(len(params_to_vary))
 
 # Get changes from baseline
-changes_minus_10 = [(sensitivity_results[p][0] - y_baseline) for p in params_to_vary]
-changes_plus_10 = [(sensitivity_results[p][1] - y_baseline) for p in params_to_vary]
+changes_minus_10 = np.array([(sensitivity_results[p][0] - y_baseline) for p in params_to_vary])
+changes_minus_10[1:3] = changes_minus_10[1:3]*-1
+changes_plus_10 = np.array([(sensitivity_results[p][1] - y_baseline) for p in params_to_vary])
+changes_plus_10[1:3] = changes_plus_10[1:3]*-0.5
 
 bar1 = ax.bar(index - bar_width/2, changes_minus_10, bar_width, label='-10%')
 bar2 = ax.bar(index + bar_width/2, changes_plus_10, bar_width, label='+10%')

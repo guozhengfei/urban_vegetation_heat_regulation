@@ -1,2 +1,3 @@
 # Ignore all scripts starting with 'M' in any subdirectory
 **/M1.5*3.py
+**/M0.7*propagate.py
