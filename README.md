@@ -11,4 +11,4 @@ Key Findings
 Spatial Divergence: Urban grassland and cropland cause net warming in 22% of cities, predominantly in arid regions (<1000 mm annual precipitation).
 Extreme Heat Response: During extreme heat, trees fail to cool 25% of cities, while grasslands and croplands fail in 71% and 82% of cities, respectively.
 Biophysical Drivers: The warming effect is driven by lower albedo and reduced heat storage in vegetation outweighing limited evapotranspiration in arid environments.
-Policy Implication: Urban greening must be climate-adaptive; in arid cities, high-albedo surfaces may be more effective than non-tree vegetation.
+
