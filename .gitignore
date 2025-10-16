@@ -1,3 +1,19 @@
 **/M1.5*3.py
 **/M0.7*propagate.py
 **/S0*.py
+# Existing ignore patterns
+
+# Ignore global urban area boundary folder and its large shapefiles
+Global_urban_area_boundary/
+
+# Ignore large archives and shapefile components
+*.zip
+*.shp
+*.dbf
+*.shx
+*.prj
+
+# Keep OS and Python artifacts ignored
+.DS_Store
+__pycache__/
+*.pyc
